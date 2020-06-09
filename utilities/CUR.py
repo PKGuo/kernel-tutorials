@@ -94,6 +94,8 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     else:
         ref_idx = list(idxs)
 
+    idxs = []
+
     Acopy = A.copy()
 
     for nn in range(n):
@@ -187,7 +189,7 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
     try:
         for nn in tqdm(range(n)):
-            if(len(ref_idxs) <= nn):
+            if(len(ref_idx) <= nn):
 
                 Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
@@ -202,7 +204,7 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
                 j = pi.argmax()
                 idxs.append(j)
             else:
-                idxs.append(ref_idxs[nn])
+                idxs.append(ref_idx[nn])
 
             v = np.linalg.pinv(
                 np.matmul(Acopy[:, idxs].T, Acopy[:, idxs]))
