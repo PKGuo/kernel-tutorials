@@ -163,7 +163,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
             dKtA = - Kx[[j]].T @ Kx[[j]] / Kx[j][j]
             Kx -= dKtA
 
-    except:
+    except ValueError:
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
 
     return list(idxs)
@@ -217,7 +217,7 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             for i in range(Acopy.shape[1]):
                 Acopy[:, i] -= v * np.dot(v, Acopy[:, i])
-    except:
+    except ValueError:
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
 
     return list(idxs)
