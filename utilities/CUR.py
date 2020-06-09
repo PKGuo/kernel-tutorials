@@ -161,7 +161,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
             Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
 
             dKtA = - Kx[[j]].T @ Kx[[j]] / Kx[j][j]
-            Kx -= dKtAm sc
+            Kx -= dKtA
 
     except:
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
