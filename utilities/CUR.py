@@ -1,5 +1,4 @@
 import numpy as np
-import time
 from scipy.sparse.linalg import svds as svd
 from scipy.sparse.linalg import eigs as speig
 import scipy
@@ -34,22 +33,6 @@ def sorted_eig(mat, thresh=0.0, n=None, sps=True):
 
     return val[:n], vec[:, :n]
 
-
-def approx_A(A, col_idx, row_idx=None):
-    """ Approximates the full matrix with selected features """
-
-    A_c = A[:, col_idx]
-    S_c = np.linalg.pinv(A_c)
-
-    A_r = A[row_idx]
-
-    if(row_idx is not None):
-        S_r = np.linalg.pinv(A_r)
-        S = np.matmul(S_c, np.matmul(A, S_r))
-    else:
-        S = S_c
-
-    return np.matmul(A_c, np.matmul(S, A_r))
 
 
 def compute_P(A_c, S, A_r, thresh=1e-12):
@@ -107,13 +90,14 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     """
 
     if(idxs is None):
-        idxs = []  # indexA is initially empty.
+        ref_idx = []
     else:
-        idxs = list(idxs)
+        ref_idx = list(idxs)
+
     Acopy = A.copy()
 
     for nn in range(n):
-        if(len(idxs) <= n):
+        if(len(ref_idx) <= n):
             if(not sps):
                 (S, v, D) = np.linalg.svd(Acopy)
             else:
@@ -123,9 +107,11 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
             pi[idxs] = 0  # eliminate possibility of selecting same column twice
             i = pi.argmax()
             idxs.append(i)
+        else:
+            idxs.append(ref_idx[nn])
 
-        v = Acopy[:, idxs[nn]] / \
-            np.sqrt(np.matmul(Acopy[:, idxs[nn]], Acopy[:, idxs[nn]]))
+        v = Acopy[:, idxs[-1]] / \
+            np.sqrt(np.matmul(Acopy[:, idxs[-1]], Acopy[:, idxs[-1]]))
 
         for i in range(Acopy.shape[1]):
             Acopy[:, i] -= v * np.dot(v, Acopy[:, i])
@@ -133,7 +119,57 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     return list(idxs)
 
 
-def pcovr_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
+    """
+        Selection function which computes the CUR
+        indices using the PCovR `Covariance` matrix
+    """
+
+    Acopy = A.T.copy()
+    Ycopy = Y.copy()
+    # Kt = alpha * Acopy @ Acopy.T + (1-alpha) * Ycopy @ Ycopy.T
+
+    Kx = Acopy @ Acopy.T
+    Ky = Ycopy @ Ycopy.T
+
+    if(idxs is None):
+        ref_idx = []
+    else:
+        ref_idx = list(idxs)
+
+    idxs = []
+
+    try:
+        for nn in tqdm(range(n)):
+            if(len(ref_idx) <= nn):
+
+                v_Kt, U_Kt = speig(alpha * Kx + (1 - alpha) * Ky, k)
+                U_Kt = U_Kt[:, np.flip(np.argsort(v_Kt))]
+
+                pi = (np.real(U_Kt)[:, :k]**2.0).sum(axis=1)
+
+                pi[idxs] = 0.0
+                j = pi.argmax()
+            else:
+                j = ref_idx[nn]
+
+            idxs.append(j)
+
+            Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
+            Ky = Ycopy @ Ycopy.T
+
+            Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
+
+            dKtA = - Kx[[j]].T @ Kx[[j]] / Kx[j][j]
+            Kx -= dKtAm sc
+
+    except:
+        print("INCOMPLETE AT {}/{}".format(len(idxs), n))
+
+    return list(idxs)
+
+
+def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -143,13 +179,15 @@ def pcovr_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
     Ycopy = Y.copy()
 
     if(idxs is None):
-        idxs = []  # indexA is initially empty.
+        ref_idx = []
     else:
-        idxs = list(idxs)
+        ref_idx = list(idxs)
+
+    idxs = []
 
     try:
         for nn in tqdm(range(n)):
-            if(len(idxs) <= nn):
+            if(len(ref_idxs) <= nn):
 
                 Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
@@ -163,16 +201,18 @@ def pcovr_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
                 pi[idxs] = 0  # eliminate possibility of selecting same column twice
                 j = pi.argmax()
                 idxs.append(j)
+            else:
+                idxs.append(ref_idxs[nn])
 
             v = np.linalg.pinv(
-                np.matmul(Acopy[:, idxs[:nn+1]].T, Acopy[:, idxs[:nn+1]]))
-            v = np.matmul(Acopy[:, idxs[:nn+1]], v)
-            v = np.matmul(v, Acopy[:, idxs[:nn+1]].T)
+                np.matmul(Acopy[:, idxs].T, Acopy[:, idxs]))
+            v = np.matmul(Acopy[:, idxs], v)
+            v = np.matmul(v, Acopy[:, idxs].T)
 
             Ycopy -= np.matmul(v, Ycopy)
 
-            v = Acopy[:, idxs[nn]] / \
-                np.sqrt(np.matmul(Acopy[:, idxs[nn]], Acopy[:, idxs[nn]]))
+            v = Acopy[:, idxs[-1]] / \
+                np.sqrt(np.matmul(Acopy[:, idxs[-1]], Acopy[:, idxs[-1]]))
 
 
             for i in range(Acopy.shape[1]):
@@ -181,9 +221,10 @@ def pcovr_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
 
     return list(idxs)
-
-
-selections = dict(svd=svd_select, pcovr=pcovr_select)
+selections = dict(svd=svd_select, pcovr=pcovr_feature_select,
+                  pcovr_features=pcovr_feature_select,
+                  pcovr_samples=pcovr_sample_select,
+            )
 
 
 class CUR:
@@ -194,7 +235,7 @@ class CUR:
         matrix: matrix to be decomposed
         precompute: (int, tuple, Nonetype) number of columns, rows to be computed
                     upon instantiation. Defaults to None.
-        feature_select: (bool) whether to compute only column indices
+        select: (None, "feature", "sample")
         pi_function: (<func>) Importance metric and selection for the matrix
         symmetry_tolerance: (float) Tolerance by which a matrix is symmetric
         params: (dict) Dictionary of additional parameters to be passed to the
@@ -207,6 +248,7 @@ class CUR:
 
     def __init__(self, matrix,
                  precompute=None,
+                 select=None,
                  feature_select=False,
                  pi_function='svd',
                  symmetry_tolerance=1e-4,
@@ -215,14 +257,27 @@ class CUR:
         self.A = matrix
         self.symmetric = self.A.shape == self.A.T.shape and \
             np.all(np.abs(self.A-self.A.T)) < symmetry_tolerance
-        self.fs = feature_select
+
+        assert select in ['feature','sample', None]
+        self.fs = (select=='feature') or feature_select
+        self.ss = (select=='sample')
+
+        print(self.fs, self.ss)
+        assert not (self.fs and self.ss)
+
         if(isinstance(pi_function, str)):
-            self.select = selections.get(pi_function, None)
+            if(pi_function == 'pcovr'):
+                if(self.fs):
+                    self.select = selections['pcovr_features']
+                else:
+                    self.select = selections['pcovr_samples']
+            else:
+                self.select = selections.get(pi_function, None)
         else:
             self.select = pi_function
         self.params = params
 
-        if(pi_function == 'pcovr'):
+        if(pi_function.startswith('pcovr')):
             try:
                 assert all([x in params for x in ['Y', 'alpha']])
             except:
@@ -237,45 +292,59 @@ class CUR:
             else:
                 self.idx_c, self.idx_r = self.compute_idx(*precompute)
 
-    def compute_idx(self, n_c, n_r):
-        idx_c = self.select(self.A, n_c, idxs=self.idx_c, **self.params)
-        if(self.fs):
-            idx_r = np.asarray(range(self.A.shape[1]))
-        elif(not self.symmetric):
-            idx_r = self.select(self.A.T, n_r, idxs=self.idx_r, **self.params)
+    def compute_idx_r(self, n_r):
+        if(not self.fs):
+            if(not self.symmetric):
+                idx_r = self.select(self.A.T, n_r, idxs=self.idx_r, **self.params)
+            else:
+                idx_r = compute_idx_c(n_r)
         else:
-            idx_r = idx_c
-        return idx_c, idx_r
+            idx_r = np.asarray(range(self.A.shape[0]))[:n_r]
+        return idx_r
 
-    def compute(self, n_c, n_r=None):
+    def compute_idx_c(self, n_c):
+        if(not self.ss):
+            idx_c = self.select(self.A, n_c, idxs=self.idx_c, **self.params)
+        else:
+            idx_c = np.asarray(range(self.A.shape[1]))[:n_c]
+        return idx_c
+
+    def compute_idx(self, n_c, n_r):
+        return self.compute_idx_c(n_c), self.compute_idx_r(n_r)
+
+    def compute(self, n_c=None, n_r=None):
         """
            Compute the n_c selected columns and n_r selected rows
         """
         if(self.fs):
-            n_r = self.A.shape[1]
-        elif(self.symmetric and n_r == None):
+            n_r = self.A.shape[0]
+        elif(self.symmetric and n_r is None):
             n_r = n_c
-        elif(n_r == None):
+        elif(n_r is None):
             print("You must specify a n_r for non-symmetric matrices.")
 
-        if(self.idx_c is None or (not self.fs and self.idx_r is None)):
-            idx_c, idx_r = self.compute_idx(n_c, n_r)
-            self.idx_c, self.idx_r = idx_c, idx_r
-        elif(len(self.idx_c) < n_c or len(self.idx_r) < n_r):
-            idx_c, idx_r = self.compute_idx(n_c, n_r)
-            self.idx_c, self.idx_r = idx_c, idx_r
+        if(self.ss):
+            n_c = self.A.shape[1]
+        elif(self.symmetric and n_c is None):
+            n_c = n_r
+        elif(n_c is None):
+            print("You must specify a n_r for non-symmetric matrices.")
+
+        print(n_c)
+
+        if(self.idx_c is None or len(self.idx_c) < n_c):
+            idx_c = self.compute_idx_c(n_c)
+            self.idx_c = idx_c
         else:
             idx_c = self.idx_c[:n_c]
+        if(self.idx_r is None or len(self.idx_r) < n_r):
+            idx_r = self.compute_idx_r(n_r)
+            self.idx_r = idx_r
+        else:
             idx_r = self.idx_r[:n_r]
-
         # The CUR Algorithm
         A_c = self.A[:, idx_c]
-        if(self.symmetric and not self.fs):
-            A_r = A_c.T
-        elif(self.fs):
-            A_r = self.A.copy()
-        else:
-            A_r = self.A[idx_r, :]
+        A_r = self.A[idx_r, :]
 
         # Compute S.
         S = np.matmul(np.matmul(np.linalg.pinv(A_c), self.A),
