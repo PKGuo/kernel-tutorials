@@ -163,8 +163,12 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
 
-            dKx= Kx[[j]].T @ Kx[[j]] / Kx[j][j]
-            Kx -= dKx
+            if(Kx[j][j] > 0):
+                dKx= Kx[[j]].T @ Kx[[j]] / Kx[j][j]
+                Kx -= dKx
+            else:
+                dKx = Kx - (Acopy @ Acopy.T)
+                Kx -= dKx
 
             K -= alpha * dKx + (1 - alpha ) *dKy
 
