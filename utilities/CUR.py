@@ -160,7 +160,6 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
             dKy = Ky - Ycopy @ Ycopy.T
-            Ky -= dKy
 
             Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
 
@@ -169,8 +168,9 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             K -= alpha * dKx + (1 - alpha ) *dKy
 
-    except ValueError:
+    except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
+        return list(idxs)
 
     return list(idxs)
 
@@ -223,8 +223,10 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             for i in range(Acopy.shape[1]):
                 Acopy[:, i] -= v * np.dot(v, Acopy[:, i])
-    except ValueError:
+
+    except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
+        return list(idxs)
 
     return list(idxs)
 selections = dict(svd=svd_select, pcovr=pcovr_feature_select,
