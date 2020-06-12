@@ -158,7 +158,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-8
 
             Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
 
-            if(Acopy[idxs[-1]] > thresh): 
+            if(np.sqrt(np.matmul(Acopy[idxs[-1]], Acopy[idxs[-1]])) > thresh): 
                 v = Acopy[idxs[-1]] / \
                     np.sqrt(np.matmul(Acopy[idxs[-1]], Acopy[idxs[-1]]))
 
