@@ -5,7 +5,6 @@ import scipy
 
 from tqdm import tqdm as tqdm
 
-from time import time
 
 def sorted_eig(mat, thresh=0.0, n=None, sps=True):
     """
@@ -122,20 +121,19 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     return list(idxs)
 
 
-def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
     """
-    timeit = kwargs.get('timeit', False)
-    start = time()
 
     Acopy = A.T.copy()
     Ycopy = Y.copy()
+    # Kt = alpha * Acopy @ Acopy.T + (1-alpha) * Ycopy @ Ycopy.T
 
     Kx = Acopy @ Acopy.T
     Ky = Ycopy @ Ycopy.T
-    K = alpha * Kx + (1 - alpha) * Ky
+    K = alpha * Kx + (1-alpha) * Ky
 
     if(idxs is None):
         ref_idx = []
@@ -144,35 +142,35 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, **kwargs):
 
     idxs = []
 
-    # try:
-    for nn in tqdm(range(n)):
-        if(len(ref_idx) <= nn):
+    try:
+        for nn in tqdm(range(n)):
+            if(len(ref_idx) <= nn):
 
-            v_Kt, U_Kt = speig(K, k)
+                v_Kt, U_Kt = speig(K, k)
+                U_Kt = U_Kt[:, np.flip(np.argsort(v_Kt))]
 
-            U_Kt = U_Kt[:, np.flip(np.argsort(v_Kt))]
+                pi = (np.real(U_Kt)[:, :k]**2.0).sum(axis=1)
 
-            pi = (np.real(U_Kt)[:, :k]**2.0).sum(axis=1)
+                pi[idxs] = 0.0
+                j = pi.argmax()
+            else:
+                j = ref_idx[nn]
 
-            pi[idxs] = 0.0
-            j = pi.argmax()
-        else:
-            j = ref_idx[nn]
+            idxs.append(j)
 
-        idxs.append(j)
+            Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
+            dKy = Ky - Ycopy @ Ycopy.T
+            Ky -= dKy
 
-        dKA = Kx[[j]].T @ Kx[[j]] / Kx[j][j]
+            Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
 
-        Kx -= dKA
+            dKx= Kx[[j]].T @ Kx[[j]] / Kx[j][j]
+            Kx -= dKx
 
-        dKY = Ky[[j]].T @ Ky[[j]] / Ky[j][j]
+            K -= alpha * dKx + (1 - alpha ) *dKy
 
-        Ky -= dKY
-
-        K -= alpha * dKA + (1-alpha) * dKY
-
-    # except ValueError:
-    #     print("INCOMPLETE AT {}/{}".format(len(idxs), n))
+    except ValueError:
+        print("INCOMPLETE AT {}/{}".format(len(idxs), n))
 
     return list(idxs)
 
