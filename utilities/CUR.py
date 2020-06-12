@@ -129,11 +129,8 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
     Acopy = A.T.copy()
     Ycopy = Y.copy()
-    # Kt = alpha * Acopy @ Acopy.T + (1-alpha) * Ycopy @ Ycopy.T
 
-    Kx = Acopy @ Acopy.T
-    Ky = Ycopy @ Ycopy.T
-    K = alpha * Kx + (1-alpha) * Ky
+    K = alpha * Acopy @ Acopy.T + (1-alpha) * Ycopy @ Ycopy.T
 
     if(idxs is None):
         ref_idx = []
@@ -158,19 +155,17 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             idxs.append(j)
 
+
             Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
-            dKy = Ky - Ycopy @ Ycopy.T
 
-            Acopy -= (Kx[[j]]/ Kx[j][j]).T @ Acopy[[j]]
+            v = Acopy[idxs[-1]] / \
+                np.sqrt(np.matmul(Acopy[idxs[-1]], Acopy[idxs[-1]]))
 
-            if(Kx[j][j] > 0):
-                dKx= Kx[[j]].T @ Kx[[j]] / Kx[j][j]
-                Kx -= dKx
-            else:
-                dKx = Kx - (Acopy @ Acopy.T)
-                Kx -= dKx
 
-            K -= alpha * dKx + (1 - alpha ) *dKy
+            for i in range(Acopy.shape[0]):
+                Acopy[i] -= v * np.dot(v, Acopy[i])
+
+            K = alpha * Acopy@Acopy.T + (1-alpha)*Ycopy @ Ycopy.T
 
     except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
