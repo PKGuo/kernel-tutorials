@@ -121,7 +121,7 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     return list(idxs)
 
 
-def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-8, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-20, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
