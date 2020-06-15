@@ -121,7 +121,7 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     return list(idxs)
 
 
-def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-20, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-30, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -159,13 +159,13 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-2
             Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
 
             Ajnorm = np.dot(Acopy[j], Acopy[j])
-            if(Ajnorm > thresh):
-                for i in range(Acopy.shape[0]):
-                    Acopy[i] -= (np.dot(Acopy[i], Acopy[j]) / Ajnorm)  * Acopy[j]
+#             if(Ajnorm > thresh):
+            for i in range(Acopy.shape[0]):
+                Acopy[i] -= (np.dot(Acopy[i], Acopy[j]) / Ajnorm)  * Acopy[j]
 
-                K = alpha * Acopy@Acopy.T + (1-alpha)*Ycopy @ Ycopy.T
-            else:
-                return list(idxs)
+            K = alpha * Acopy@Acopy.T + (1-alpha)*Ycopy @ Ycopy.T
+#             else:
+#                 return list(idxs)
 
     except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
