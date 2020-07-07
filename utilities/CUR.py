@@ -59,15 +59,17 @@ def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
 
     if(alpha < 1.0):
         # changing these next two lines can cause a LARGE error
-        Cinv = np.linalg.pinv(cov, hermitian=True)
-        try:
-            Csqrt = scipy.linalg.sqrtm(cov)
-        except:
-            v, U = sorted_eig(cov)
-            Csqrt = U @ np.diagflat(np.sqrt(v)) @ U.T
+        Cinv = np.linalg.inv(cov)
+        Cisqrt = scipy.linalg.sqrtm(Cinv)
+#         try:
+#             Csqrt = scipy.linalg.sqrtm(cov)
+#         except:
+#             v, U = sorted_eig(cov)
+#             Csqrt = U @ np.diagflat(np.sqrt(v)) @ U.T
+#         Cisqrt = Csqrt @ Cinv
 
         # parentheses speed up calculation greatly
-        Y_hat = Csqrt @ Cinv @ (X.T @ Y)
+        Y_hat = Cisqrt @ (X.T @ Y)
 
         if(len(Y_hat.shape) < 2):
             Y_hat = Y_hat.reshape((-1, 1))
