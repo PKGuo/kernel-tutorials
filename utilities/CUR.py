@@ -60,7 +60,7 @@ def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
     if(alpha < 1.0):
         # changing these next two lines can cause a LARGE error
         Cinv = np.linalg.inv(cov)
-	Cisqrt = scipy.linalg.sqrtm(Cinv)
+        Cisqrt = scipy.linalg.sqrtm(Cinv)
 #         try:
 #             Csqrt = scipy.linalg.sqrtm(cov)
 #         except:
