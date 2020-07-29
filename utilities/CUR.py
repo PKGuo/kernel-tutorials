@@ -66,7 +66,7 @@ def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
 #         except:
 #             v, U = sorted_eig(cov)
 #             Csqrt = U @ np.diagflat(np.sqrt(v)) @ U.T
-#         Cisqrt = Csqrt @ Cinv
+# 	Cisqrt = Csqrt @ Cinv
 
         # parentheses speed up calculation greatly
         Y_hat = Cisqrt @ (X.T @ Y)
