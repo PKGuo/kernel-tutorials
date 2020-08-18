@@ -1,4 +1,4 @@
-import numpy as np
+.import numpy as np
 from scipy.sparse.linalg import svds as svd
 from scipy.sparse.linalg import eigs as speig
 import scipy
@@ -61,12 +61,6 @@ def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
         # changing these next two lines can cause a LARGE error
         Cinv = np.linalg.pinv(cov)
         Cisqrt = scipy.linalg.sqrtm(Cinv)
-#         try:
-#             Csqrt = scipy.linalg.sqrtm(cov)
-#         except:
-#             v, U = sorted_eig(cov)
-#             Csqrt = U @ np.diagflat(np.sqrt(v)) @ U.T
-# 	Cisqrt = Csqrt @ Cinv
 
         # parentheses speed up calculation greatly
         Y_hat = Cisqrt @ (X.T @ Y)
@@ -84,6 +78,24 @@ def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
 
     return C
 
+
+def get_Kt(X, Y, alpha=0.5):
+    """
+        Creates the PCovR modified covariance
+        ~C = (alpha) * X^T X +
+             (1-alpha) * (X^T X)^(-1/2) ~Y ~Y^T (X^T X)^(-1/2)
+
+        where ~Y is the properties obtained by linear regression.
+    """
+
+    K = np.zeros((X.shape[0], X.shape[0]))
+
+    if(alpha < 1.0):
+        K += (1 - alpha) * Y @ Y.T
+    elif(alpha > 0.0):
+        K += (1 - alpha) * X @ X.T
+
+    return K
 
 def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     """
@@ -132,11 +144,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-3
     Acopy = A.T.copy()
     Ycopy = Y.copy()
 
-    K = np.zeros((Acopy.shape[0], Acopy.shape[0]))
-    if(alpha > 0):
-        K += alpha * Acopy @ Acopy.T
-    if(alpha < 1):
-        K += (1-alpha) * Ycopy @ Ycopy.T
+    K = get_Kt(Acopy, Ycopy, alpha)
 
     if(idxs is None):
         ref_idx = []
@@ -169,11 +177,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-3
             for i in range(Acopy.shape[0]):
                 Acopy[i] -= (np.dot(Acopy[i], Acopy[j]) / Ajnorm)  * Acopy[j]
 
-            K = np.zeros((Acopy.shape[0], Acopy.shape[0]))
-            if(alpha > 0):
-                K += alpha * Acopy @ Acopy.T
-            if(alpha < 1):
-                K += (1-alpha) * Ycopy @ Ycopy.T
+            K = get_Kt(Acopy, Ycopy, alpha)
 
 
     except (ValueError, KeyboardInterrupt):
@@ -198,12 +202,12 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
         ref_idx = list(idxs)
 
     idxs = []
+    Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
     try:
         for nn in tqdm(range(n)):
             if(len(ref_idx) <= nn):
 
-                Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
                 if(not sps):
                     v_Ct, U_Ct = sorted_eig(Ct, n=k)
@@ -231,6 +235,8 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
 
             for i in range(Acopy.shape[1]):
                 Acopy[:, i] -= v * np.dot(v, Acopy[:, i])
+
+            Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
     except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
@@ -278,7 +284,6 @@ class CUR:
         self.fs = (select=='feature') or feature_select
         self.ss = (select=='sample')
 
-        print(self.fs, self.ss)
         assert not (self.fs and self.ss)
 
         if(isinstance(pi_function, str)):
