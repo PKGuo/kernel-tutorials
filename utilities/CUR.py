@@ -1,4 +1,4 @@
-.import numpy as np
+import numpy as np
 from scipy.sparse.linalg import svds as svd
 from scipy.sparse.linalg import eigs as speig
 import scipy
