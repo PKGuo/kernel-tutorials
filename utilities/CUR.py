@@ -33,20 +33,17 @@ def sorted_eig(mat, thresh=0.0, n=None, sps=True):
 
     return val[:n], vec[:, :n]
 
-
-
-def compute_P(A_c, S, A_r, thresh=1e-12):
+def compute_P(A_c, S, A_r, rcond=1e-12):
     """ Computes the latent-space projector for the feature matrix """
     SA = np.matmul(S, A_r)
     SA = np.matmul(SA, SA.T)
 
     v_SA, U_SA = np.linalg.eigh(SA)
-    v_SA[v_SA < thresh] = 0
+    v_SA[v_SA < rcond] = 0
 
     return np.matmul(U_SA, np.diagflat(np.sqrt(v_SA)))
 
-
-def get_Ct(X, Y, alpha=0.5, regularization=1e-6):
+def get_Ct(X, Y, alpha=0.5, rcond=1e-6):
     """
         Creates the PCovR modified covariance
         ~C = (alpha) * X^T X +
@@ -134,8 +131,7 @@ def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
 
     return list(idxs)
 
-
-def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-30, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond = 1e-12, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -171,7 +167,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-3
 
 
             if(alpha < 1):
-                Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs]) @ Acopy[idxs].T) @ Ycopy[idxs]
+                Ycopy -= Acopy @ (np.linalg.pinv(Acopy[idxs].T @ Acopy[idxs], rcond=rcond) @ Acopy[idxs].T) @ Ycopy[idxs]
 
             Ajnorm = np.dot(Acopy[j], Acopy[j])
             for i in range(Acopy.shape[0]):
@@ -186,8 +182,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, thresh = 1e-3
 
     return list(idxs)
 
-
-def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
+def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond=1E-12, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -223,7 +218,7 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, **kwargs):
                 idxs.append(ref_idx[nn])
 
             v = np.linalg.pinv(
-                np.matmul(Acopy[:, idxs].T, Acopy[:, idxs]))
+                np.matmul(Acopy[:, idxs].T, Acopy[:, idxs]), rcond=rcond)
             v = np.matmul(Acopy[:, idxs], v)
             v = np.matmul(v, Acopy[:, idxs].T)
 
@@ -257,9 +252,8 @@ class CUR:
         matrix: matrix to be decomposed
         precompute: (int, tuple, Nonetype) number of columns, rows to be computed
                     upon instantiation. Defaults to None.
-        select: (None, "feature", "sample")
-        pi_function: (<func>) Importance metric and selection for the matrix
-        symmetry_tolerance: (float) Tolerance by which a matrix is symmetric
+        pi_function: (<func> | string) Importance metric and selection for the matrix
+        rcond: (float) regularization for pseudo-inverses and decompositions
         params: (dict) Dictionary of additional parameters to be passed to the
                 pi function
 
@@ -273,7 +267,7 @@ class CUR:
                  select=None,
                  feature_select=False,
                  pi_function='svd',
-                 symmetry_tolerance=1e-4,
+                 rcond=1E-12,
                  params={}
                  ):
         self.A = matrix
@@ -296,6 +290,9 @@ class CUR:
                 self.select = selections.get(pi_function, None)
         else:
             self.select = pi_function
+
+        self.rcond = rcond
+
         self.params = params
 
         if(pi_function.startswith('pcovr')):
