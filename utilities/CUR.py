@@ -85,7 +85,7 @@ def get_Kt(X, Y, alpha=0.5):
 
     return K
 
-def svd_select(A, n, k=1, idxs=None, sps=False, **kwargs):
+def svd_feature_select(A, n, k=1, idxs=None, sps=False, **kwargs):
     """
         Selection function which computes the CUR
         indices using the SVD Decomposition
@@ -128,7 +128,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond = 1e-12
         indices using the PCovR `Covariance` matrix
     """
 
-    Acopy = A.T.copy()
+    Acopy = A.copy()
     Ycopy = Y.copy()
 
     K = get_Kt(Acopy, Ycopy, alpha)
