@@ -93,7 +93,7 @@ def get_Kt(X, Y, alpha=0.5):
     if(alpha < 1.0):
         K += (1 - alpha) * Y @ Y.T
     elif(alpha > 0.0):
-        K += (1 - alpha) * X @ X.T
+        K += (alpha) * X @ X.T
 
     return K
 
