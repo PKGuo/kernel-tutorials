@@ -54,43 +54,34 @@ def get_Ct(X, Y, alpha=0.5, rcond=1e-6):
 
     cov = X.T @ X
 
-    if(alpha < 1.0):
-        # changing these next two lines can cause a LARGE error
-        Cinv = np.linalg.pinv(cov)
-        Cisqrt = scipy.linalg.sqrtm(Cinv)
+    # changing these next two lines can cause a LARGE error
+    Cinv = np.linalg.pinv(cov, rcond=rcond)
+    Cisqrt = scipy.linalg.sqrtm(Cinv)
 
-        # parentheses speed up calculation greatly
-        Y_hat = Cisqrt @ (X.T @ Y)
+    # parentheses speed up calculation greatly
+    Y_hat = Cisqrt @ (X.T @ Y)
 
-        if(len(Y_hat.shape) < 2):
-            Y_hat = Y_hat.reshape((-1, 1))
+    if(len(Y_hat.shape) < 2):
+        Y_hat = Y_hat.reshape((-1, 1))
 
-        C_lr = Y_hat @ Y_hat.T
-
-    else:
-        C_lr = np.zeros(cov.shape)
+    C_lr = Y_hat @ Y_hat.T
 
     C_pca = cov
     C = alpha*C_pca + (1.0-alpha)*C_lr
 
     return C
 
-
 def get_Kt(X, Y, alpha=0.5):
     """
-        Creates the PCovR modified covariance
-        ~C = (alpha) * X^T X +
-             (1-alpha) * (X^T X)^(-1/2) ~Y ~Y^T (X^T X)^(-1/2)
+        Creates the PCovR modified kernel distances
+        ~K = (alpha) * X X^T +
+             (1-alpha) * Y Y^T
 
-        where ~Y is the properties obtained by linear regression.
     """
 
     K = np.zeros((X.shape[0], X.shape[0]))
-
-    if(alpha < 1.0):
-        K += (1 - alpha) * Y @ Y.T
-    elif(alpha > 0.0):
-        K += (alpha) * X @ X.T
+    K += (1 - alpha) * Y @ Y.T
+    K += (alpha) * X @ X.T
 
     return K
 
