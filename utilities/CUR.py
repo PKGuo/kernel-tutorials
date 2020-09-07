@@ -55,7 +55,7 @@ def get_Ct(X, Y, alpha=0.5, rcond=1e-6):
     cov = X.T @ X
 
     # changing these next two lines can cause a LARGE error
-    Cinv = np.linalg.pinv(cov, rcond=rcond)
+    Cinv = np.linalg.pinv(cov)
     Cisqrt = scipy.linalg.sqrtm(Cinv)
 
     # parentheses speed up calculation greatly
@@ -229,15 +229,11 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond=1E-12,
         return list(idxs)
 
     return list(idxs)
-selections = dict(svd=svd_select, pcovr=pcovr_feature_select,
-                  pcovr_features=pcovr_feature_select,
-                  pcovr_samples=pcovr_sample_select,
-            )
-
 
 class CUR:
     """
-        Performs CUR Decomposition on a Supplied Matrix
+        Super class for sampleCUR and featureCUR
+        Performs CUR Decomposition on a Supplied Matrix for feature or sample seletion
 
         ---Arguments---
         matrix: matrix to be decomposed
@@ -252,33 +248,19 @@ class CUR:
         1.  G.  Imbalzano,  A.  Anelli,  D.  Giofre,  S.  Klees,  J.  Behler,
             and M. Ceriotti, J. Chem. Phys.148, 241730 (2018)
     """
-
     def __init__(self, matrix,
                  precompute=None,
-                 select=None,
-                 feature_select=False,
                  pi_function='svd',
                  rcond=1E-12,
                  params={}
                  ):
         self.A = matrix
-        self.symmetric = self.A.shape == self.A.T.shape and \
-            np.all(np.abs(self.A-self.A.T)) < symmetry_tolerance
-
-        assert select in ['feature','sample', None]
-        self.fs = (select=='feature') or feature_select
-        self.ss = (select=='sample')
-
-        assert not (self.fs and self.ss)
 
         if(isinstance(pi_function, str)):
             if(pi_function == 'pcovr'):
-                if(self.fs):
-                    self.select = selections['pcovr_features']
-                else:
-                    self.select = selections['pcovr_samples']
-            else:
-                self.select = selections.get(pi_function, None)
+                self.select = self.pcovr_select
+            elif(pi_function == 'svd'):
+                self.select = self.svd_select
         else:
             self.select = pi_function
 
@@ -293,84 +275,42 @@ class CUR:
                 print(
                     "For column selection with PCovR, `Y` and `alpha` must be entries in `params`")
 
-        self.idx_c, self.idx_r = None, None
+        self.idx = None
+
         if(precompute is not None):
-            if(isinstance(precompute, int)):
-                self.idx_c, self.idx_r = self.compute_idx(
-                    precompute, precompute)
-            else:
-                self.idx_c, self.idx_r = self.compute_idx(*precompute)
+            self.idx = self.compute(precompute)
 
-    def compute_idx_r(self, n_r):
-        if(not self.fs):
-            if(not self.symmetric):
-                idx_r = self.select(self.A.T, n_r, idxs=self.idx_r, **self.params)
-            else:
-                idx_r = compute_idx_c(n_r)
-        else:
-            idx_r = np.asarray(range(self.A.shape[0]))[:n_r]
-        return idx_r
+    def compute(self, n):
+        self.idx = self.select(self.A, n=n, rcond=self.rcond, idxs=self.idx, **self.params)
+        return self.idx
 
-    def compute_idx_c(self, n_c):
-        if(not self.ss):
-            idx_c = self.select(self.A, n_c, idxs=self.idx_c, **self.params)
-        else:
-            idx_c = np.asarray(range(self.A.shape[1]))[:n_c]
-        return idx_c
+class sampleCUR(CUR):
 
-    def compute_idx(self, n_c, n_r):
-        return self.compute_idx_c(n_c), self.compute_idx_r(n_r)
+    def __init__(self, matrix,
+                 precompute=None,
+                 pi_function='svd',
+                 rcond=1E-12,
+                 params={}
+                 ):
+        self.pcovr_select = pcovr_sample_select
+        super().__init__(matrix=matrix, precompute=precompute,
+                         pi_function=pi_function,
+                         rcond=1E-12,
+                         params=params)
 
-    def compute(self, n_c=None, n_r=None):
-        """
-           Compute the n_c selected columns and n_r selected rows
-        """
-        if(self.fs):
-            n_r = self.A.shape[0]
-        elif(self.symmetric and n_r is None):
-            n_r = n_c
-        elif(n_r is None):
-            print("You must specify a n_r for non-symmetric matrices.")
+    def svd_select(A, **kwargs):
+        return svd_feature_select(A.T, **kwargs)
 
-        if(self.ss):
-            n_c = self.A.shape[1]
-        elif(self.symmetric and n_c is None):
-            n_c = n_r
-        elif(n_c is None):
-            print("You must specify a n_r for non-symmetric matrices.")
-
-        print(n_c)
-
-        if(self.idx_c is None or len(self.idx_c) < n_c):
-            idx_c = self.compute_idx_c(n_c)
-            self.idx_c = idx_c
-        else:
-            idx_c = self.idx_c[:n_c]
-        if(self.idx_r is None or len(self.idx_r) < n_r):
-            idx_r = self.compute_idx_r(n_r)
-            self.idx_r = idx_r
-        else:
-            idx_r = self.idx_r[:n_r]
-        # The CUR Algorithm
-        A_c = self.A[:, idx_c]
-        A_r = self.A[idx_r, :]
-
-        # Compute S.
-        S = np.matmul(np.matmul(np.linalg.pinv(A_c), self.A),
-                      np.linalg.pinv(A_r))
-        return A_c, S, A_r
-
-    def compute_P(self, n_c):
-        """
-           Computes the projector into latent-space for ML models
-        """
-
-        A_c, S, A_r = self.compute(n_c)
-        self.P = compute_P(A_c, S, A_r)
-
-    def loss(self, n_c, n_r=None):
-        """
-            Error between approximated matrix and target
-        """
-        A_c, S, A_r = self.compute(n_c, n_r)
-        return np.linalg.norm(self.A - np.matmul(A_c, np.matmul(S, A_r)))/np.linalg.norm(self.A)
+class featureCUR(CUR):
+    def __init__(self, matrix,
+                 precompute=None,
+                 pi_function='svd',
+                 rcond=1E-12,
+                 params={}
+                 ):
+        self.pcovr_select = pcovr_feature_select
+        self.svd_select = svd_feature_select
+        super().__init__(matrix=matrix, precompute=precompute,
+                         pi_function=pi_function,
+                         rcond=1E-12,
+                         params=params)
