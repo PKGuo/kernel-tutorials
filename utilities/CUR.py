@@ -5,34 +5,6 @@ import scipy
 
 from tqdm import tqdm as tqdm
 
-
-def sorted_eig(mat, thresh=0.0, n=None, sps=True):
-    """
-        Returns n eigenvalues and vectors sorted
-        from largest to smallest eigenvalue
-    """
-    if(sps):
-        from scipy.sparse.linalg import eigs as speig
-        if(n is None):
-            n = mat.shape[0] - 1
-        val, vec = speig(mat, k=n, tol=thresh)
-        val = np.real(val)
-        vec = np.real(vec)
-
-        idx = sorted(range(len(val)), key=lambda i: -val[i])
-        val = val[idx]
-        vec = vec[:, idx]
-
-    else:
-        val, vec = np.linalg.eigh(mat)
-        val = np.flip(val, axis=0)
-        vec = np.flip(vec, axis=1)
-
-    vec[:, val < thresh] = 0
-    val[val < thresh] = 0
-
-    return val[:n], vec[:, :n]
-
 def compute_P(A_c, S, A_r, rcond=1e-12):
     """ Computes the latent-space projector for the feature matrix """
     SA = np.matmul(S, A_r)
@@ -122,7 +94,7 @@ def svd_feature_select(A, n, k=1, idxs=None, sps=False, **kwargs):
 
     return list(idxs)
 
-def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond = 1e-12, **kwargs):
+def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, iterative=True, rcond = 1e-12, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -148,6 +120,8 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond = 1e-12
                 U_Kt = U_Kt[:, np.flip(np.argsort(v_Kt))]
 
                 pi = (np.real(U_Kt)[:, :k]**2.0).sum(axis=1)
+                if(not iterative):
+                    return list(reversed(np.argsort(pi)))
 
                 pi[idxs] = 0.0
                 j = pi.argmax()
@@ -173,7 +147,7 @@ def pcovr_sample_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond = 1e-12
 
     return list(idxs)
 
-def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond=1E-12, **kwargs):
+def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, iterative=True, rcond=1E-12, **kwargs):
     """
         Selection function which computes the CUR
         indices using the PCovR `Covariance` matrix
@@ -194,14 +168,16 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond=1E-12,
         for nn in tqdm(range(n)):
             if(len(ref_idx) <= nn):
 
+                Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
-                if(not sps):
-                    v_Ct, U_Ct = sorted_eig(Ct, n=k)
-                else:
-                    v_Ct, U_Ct = speig(Ct, k)
-                    U_Ct = U_Ct[:, np.flip(np.argsort(v_Ct))]
+                v_Ct, U_Ct = speig(Ct, k)
+                U_Ct = U_Ct[:, np.flip(np.argsort(v_Ct))]
 
                 pi = (np.real(U_Ct)[:, :k]**2.0).sum(axis=1)
+
+                if(not iterative):
+                    return list(reversed(np.argsort(pi)))
+
                 pi[idxs] = 0  # eliminate possibility of selecting same column twice
                 j = pi.argmax()
                 idxs.append(j)
@@ -222,7 +198,6 @@ def pcovr_feature_select(A, n, Y, alpha, k=1, idxs=None, sps=False, rcond=1E-12,
             for i in range(Acopy.shape[1]):
                 Acopy[:, i] -= v * np.dot(v, Acopy[:, i])
 
-            Ct = get_Ct(Acopy, Ycopy, alpha=alpha)
 
     except (ValueError, KeyboardInterrupt):
         print("INCOMPLETE AT {}/{}".format(len(idxs), n))
